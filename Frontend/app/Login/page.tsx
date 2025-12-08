@@ -7,29 +7,60 @@ import { useAuth } from "../context/AuthContext";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { setIsLoggedin } = useAuth();
-
+  const {setIsLoggedin} = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    setError(null);
+    setErrorMsg(null);
 
-    const { error } = await supabase.auth.signInWithPassword({
+    // -----------------------------
+    // LOGIN USER
+    // -----------------------------
+    const { error: loginError } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
-    if (error) {
-      setError(error.message);
+    if (loginError) {
+      setErrorMsg(loginError.message);
       setLoading(false);
       return;
     }
 
+    // -----------------------------
+    // GET USER SAFELY
+    // -----------------------------
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+
+    if (userError || !userData?.user) {
+      console.error("User not logged in");
+      setLoading(false);
+      return;
+    }
+
+    const user = userData.user;
+
+    // -----------------------------
+    // INSERT LOGIN ACTIVITY
+    // -----------------------------
+    const { error: activityError } = await supabase
+      .from("user_activity")
+      .insert({
+        user_id: user.id,
+      });
+
+    if (activityError) {
+      console.error("Activity insert error:", activityError.message);
+    }
+
+    // -----------------------------
+    // REDIRECT AFTER LOGIN
+    // -----------------------------
     setIsLoggedin(true);
     router.push("/Dashboard");
   }
@@ -46,9 +77,7 @@ export default function LoginPage() {
 
             <p className="text-sm text-gray-600 leading-relaxed">
               Login to access your{" "}
-              <span className="font-semibold text-blue-600">
-                workout analyzer dashboard
-              </span>{" "}
+              <span className="font-semibold text-blue-600">workout analyzer dashboard</span>{" "}
               and track your form, accuracy, and muscle engagement.
             </p>
 
@@ -95,7 +124,7 @@ export default function LoginPage() {
                 />
               </div>
 
-              {error && <p className="text-xs text-red-500">{error}</p>}
+              {errorMsg && <p className="text-xs text-red-500">{errorMsg}</p>}
 
               <button
                 type="submit"
@@ -108,7 +137,7 @@ export default function LoginPage() {
             </form>
 
             <button
-              onClick={() => router.push("/signup")}
+              onClick={() => router.push("/Signup")}
               className="mt-4 text-xs text-blue-600 hover:underline self-center"
             >
               Don’t have an account? Create one
